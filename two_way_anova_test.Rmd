@@ -1,0 +1,160 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+#1. Import the dataset with the response and the factors we are analyzing for:
+
+df <- read.csv("data/factors.csv")
+
+```
+
+```{r}
+#We are only interested on the main effect of Avg_Temp_Change and CO2_Change and their interaction effects on the response of GDP_Change
+
+df_1 <- df [,c("GDP_Change", "Temp_Factor", "CO2_Factor")]
+
+
+```
+```{r}
+
+```
+
+```{r}
+#We observe the structure of the data and convert all the factors into "Factor" type from numeric type using the function as.factor
+
+str(df_1)
+
+df_1$Temp_Factor <- as.factor(df_1$Temp_Factor)
+df_1$CO2_Factor <- as.factor(df_1$CO2_Factor)
+```
+
+```{r}
+#We confirm if the 2 factors we want to test for have been converted to the right type for performing analysis. 
+head(df_1)
+```
+
+```{r}
+#We generate a frequency table for the factors, to perform the two-way ANOVA Operations.
+
+table(df_1$Temp_Factor, df_1$CO2_Factor)
+```
+```{r}
+#We need the Anova() function from car package for testing two way anova for unbalanced design / i tried with the table csv which has a balanced design, but keep running into errors. 
+library(car)
+```
+
+```{r}
+
+#For an unbalanced design we employ the Type III ANOVA Available from the car package.
+result_aov <- aov (GDP_Change ~ Temp_Factor * CO2_Factor, data = df_1)
+Anova(result_aov, type = "III")
+
+```
+
+```{r}
+##the p-value of Temp_Factor is 0.5127 (not significant), which indicates that the levels of Temp_Factor are not associated with significant difference in GDP.
+##the p-value of CO2_Factor is 0.1211 (not significant), which indicates that the levels of CO_2 are not associated with significant difference in GDP.
+##the p-value for the interaction between Temp_Factor*CO2_Factor is 0.6742 (not significant)
+```
+
+```{r}
+#Therefore we test for the main effects of the factors separately on the Change of GDP
+result_aov <- aov (GDP_Change ~ Temp_Factor + CO2_Factor, data = df_1)
+Anova(result_aov, type = "III")
+
+```
+```{r}
+#The p value of CO2_Factor is 0.0001205 (<0.05) . THis indicates that Change in CO2 is a significant factor for GDP CHange
+#THe p-value of Temp_Factor is 0.7619514 (>0.05). THis indicates that change in Temp is not a significant factor for GDP Change.
+```
+
+
+```{r}
+#We compute the summary statistics
+require("dplyr")
+group_by(df_1, Temp_Factor, CO2_Factor) %>%
+  summarise(
+    count = n(),
+    mean = mean(GDP_Change, na.rm = TRUE),
+    sd = sd(GDP_Change, na.rm = TRUE)
+  )
+```
+
+```{r}
+#Tukey multiple pairwise-comparisons
+
+#As the ANOVA test is significant, we can compute Tukey HSD (Tukey Honest Significant Differences, R function: TukeyHSD()) for performing multiple pairwise-comparison between the means of groups. The function TukeyHD() takes the fitted ANOVA as an argument.
+
+#We perform the tukey test on Temp_Factor to check for the multiple pairwise comparisons. We don't have to perform this test for the CO2_Level as it has 3 levels, which have proven to be significant in the ANOVA Test. 
+
+TukeyHSD(result_aov, which = "CO2_Factor")
+```
+
+```{r}
+#Check ANOVA assumptions: test validity?
+#ANOVA assumes that the data are normally distributed and the variance across groups are homogeneous. We can check that with some diagnostic plots.
+
+#1. Homogeneity of Variances
+#Check the homogeneity of variance assumption - The residuals versus fits plot is used to check the homogeneity of variances.
+
+plot(result_aov, 1)
+
+```
+```{r}
+#In the above plot there is no evident relationships between residuals and fitted values (the mean of each groups), which is good. So, we can assume the homogeneity of variances.
+```
+
+```{r}
+#alternatively we can use the Levene’s test to check the homogeneity of variances.
+leveneTest(GDP_Change ~ Temp_Factor*CO2_Factor, data = df_1)
+```
+```{r}
+#From the output above we can see that the p-value is not less than the significance level of 0.05. This means that there is no evidence to suggest that the variance across groups is statistically significantly different. Therefore, we can assume the homogeneity of variances in the different treatment groups.
+```
+
+```{r}
+#Check the normality assumpttion
+
+#The normal probability plot of residuals is used to verify the assumption that the residuals are normally distributed.
+
+#The normal probability plot of the residuals should approximately follow a straight line.
+
+plot(result_aov, 2)
+```
+```{r}
+#As all the points fall approximately along this reference line, we can assume normality.
+
+#The conclusion above, is supported by the Shapiro-Wilk test on the ANOVA residuals (W = 0.98, p = 0.5) which finds no indication that normality is violated.
+
+# Extract the residuals
+aov_residuals <- residuals(object = result_aov)
+# Run Shapiro-Wilk test
+shapiro.test(x = aov_residuals )
+```
+
